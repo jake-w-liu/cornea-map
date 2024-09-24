@@ -2,6 +2,7 @@ using BatchAssign
 using LinearAlgebra
 using Infiltrator
 using PlotlyJS
+using FFMPEG
 
 # basic parameters
 Base.@kwdef mutable struct Parameters
@@ -124,124 +125,22 @@ end
 # plt = plot(scatter(), layout)
 plt = plot_cornea(CorneaList, par)
 display(plt)
+
+if !isdir("tmp")
+    mkdir("tmp")
+end
+
 for nt in 1:100
     update_cornea!(CorneaList, 20)
     update_plot!(plt, CorneaList, par)
-    sleep(0.1)
+    filename = "./tmp/snap_" * lpad(nt, 3, '0') * ".png"
+    savefig(plt, filename; 
+        height = round(Int, diff(par.xrange)[1]/5),
+        width  = round(Int, diff(par.yrange)[1]/5),)
+    # sleep(0.1)
 end
 
-# ## test1
-
-# layout = Layout(
-#     template = "plotly_white",
-#     # plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
-#     # xaxis=attr(scaleanchor="y"),
-#     xaxis = attr(range = [0, par.Sx / 1]),
-#     yaxis = attr(range = [0, par.Sy / 1]),
-#     shapes = [
-#         rect(
-#             x0 = 0,
-#             y0 = 0,
-#             x1 = par.Sx,
-#             y1 = par.Sy,
-#             line = attr(
-#                 color = "rgb(12,72,66)", # ONANDO
-#                 width = 2,
-#             ),
-#             fillcolor = "rgb(43,95,117)", # NOSHIMEHANA
-#             xref = 'x',
-#             yref = 'y',
-#         ),
-#     ],
-#     height = par.Sy / 20,
-#     width = par.Sx / 20,
-# )
-# for n = 1:par.Nc
-#     push!(
-#         layout.shapes,
-#         circle(
-#             xref = "x",
-#             yref = "y",
-#             fillcolor = "rgb(251,226,81)", # KIHADA
-#             # line_color="rgb(255,196,8)", # TOHOH
-#             x0 = CorneaList[n].pos[1] - par.Dc / 2,
-#             y0 = CorneaList[n].pos[2] - par.Dc / 2,
-#             x1 = CorneaList[n].pos[1] + par.Dc / 2,
-#             y1 = CorneaList[n].pos[2] + par.Dc / 2,
-#         ),
-#     )
-# end
-
-# plt = plot(layout)
-# display(plt)
-
-# ## test2
-
-# layout = Layout(
-#     template = "plotly_white",
-#     # plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
-#     # xaxis=attr(scaleanchor="y"),
-#     xaxis = attr(range = [0, par.Sx]),
-#     yaxis = attr(range = [0, par.Sy]),
-#     # shapes=[
-#     #     rect(
-#     #         x0=0, y0=0, x1=par.Sx, y1=par.Sy,
-#     #         line=attr(
-#     #             color="rgb(12,72,66)", # ONANDO
-#     #             width=2,
-#     #         ),
-#     #         fillcolor="rgb(43,95,117)", # NOSHIMEHANA
-#     #         xref='x', yref='y'
-#     #     )
-#     # ],
-#     height = par.Sy / par.Dc,
-#     width = par.Sx / par.Dc,
-# )
-# @all x y = zeros(par.Nc)
-# for n = 1:par.Nc
-#     x[n] = CorneaList[n].pos[1]
-#     y[n] = CorneaList[n].pos[2]
-# end
-# trace = scatter(
-#     x = x,
-#     y = y,
-#     mode = "markers",
-#     marker = attr(
-#         color = "rgb(251,226,81)", # KIHADA
-#         size = 1,
-#     ),
-# )
-
-# plt = plot(trace, layout)
-
-# ## test3
-
-# layout = Layout(
-#     template = "plotly_white",
-#     plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
-#     # xaxis=attr(scaleanchor="y"),
-#     xaxis = attr(range = [0, par.Sx / 1]),
-#     yaxis = attr(range = [0, par.Sy / 1]),
-#     shapes = [
-#         circle(
-#             xref = "x",
-#             yref = "y",
-#             fillcolor = "rgb(251,226,81)", # KIHADA
-#             # line_color="rgb(255,196,8)", # TOHOH
-#             x0 = [],
-#             y0 = [],
-#             x1 = [],
-#             y1 = [],
-#         ),
-#     ],
-#     height = par.Sy / 20,
-#     width = par.Sx / 20,
-# )
-# for n = 1:par.Nc
-#     push!(layout.shapes[1].x0, CorneaList[n].pos[1] - par.Dc / 2)
-#     push!(layout.shapes[1].x1, CorneaList[n].pos[1] + par.Dc / 2)
-#     push!(layout.shapes[1].y0, CorneaList[n].pos[2] - par.Dc / 2)
-#     push!(layout.shapes[1].y1, CorneaList[n].pos[2] + par.Dc / 2)
-# end
-
-# plt = plot(layout)
+imagesdirectory = "./tmp"
+framerate = 30
+gifname = "output.gif"
+FFMPEG.ffmpeg_exe(`-framerate $(framerate) -f image2 -i $(imagesdirectory)/snap_%03d.png -y $(gifname)`)
