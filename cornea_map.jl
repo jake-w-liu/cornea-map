@@ -8,7 +8,7 @@ using Base.Threads
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc = 29.74 # cornea diameter (nm)
-    Nc = 10000#86775 # number of cornea fibers
+    Nc = 86775 # number of cornea fibers
     Sx = 22000 # space lengh in x (nm)
     Sy = 30000 # space lengh in y (nm)
     ds = 10 # grid size (nm)
@@ -29,8 +29,8 @@ function generate_pos(sx, sy, d)
 end
 
 function find_neighbor(pos::Matrix{<:Real})
-    neighbor = Vector{Vector{Int}}(undef, 0)
     N = size(pos, 1)
+    neighbor = Vector{Vector{Int}}(undef, N)
     dif = zeros(N)
     si = zeros(Int, N)
     
@@ -39,7 +39,7 @@ function find_neighbor(pos::Matrix{<:Real})
             dif[n] = norm(pos[nc] .- pos[n])
         end
         si .= sortperm(dif)
-        push!(neighbor, [si[2], si[3], si[4]])
+        neighbor[nc] = [si[2], si[3], si[4]]
         println(nc)
     end
     return neighbor
@@ -151,8 +151,6 @@ end
 par = Parameters()
 @time cl = init_cornea(par)
 
-# layout = layout_cornea(cl, par)
-# plt = plot(scatter(), layout)
 plt = plot_cornea(cl, par)
 display(plt)
 
@@ -161,7 +159,7 @@ if !isdir("tmp")
 end
 
 for nt in 1:100
-    update_cornea!(cl, 20)
+    update_cornea!(cl, par, 20)
     update_plot!(plt, cl, par)
     filename = "./tmp/snap_" * lpad(nt, 3, '0') * ".png"
     savefig(plt, filename; 
