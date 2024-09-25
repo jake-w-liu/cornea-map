@@ -79,13 +79,14 @@ function update_cornea!(cl::CorneaList, par::Parameters, d::Real)
     pass = false
     tmp = zeros(2)
     for n in 1:size(cl.pos, 1)
-        if !pass
+        pass = false
+        while !pass
             # @all cl.pos[n, 1] cl.pos[n, 2] += (rand()-0.5)*d
             tmp[1] = cl.pos[n, 1] + (rand()-0.5)*d
             tmp[2] = cl.pos[n, 2] + (rand()-0.5)*d
-            if norm(tmp.- cl.pos[cl,nb[n][1], :]) > par.r &&  
-                norm(tmp .- cl.pos[cl,nb[n][2], :]) > par.r &&  
-                norm(tmp .- cl.pos[cl,nb[n][3], :]) > par.r 
+            if norm(tmp.- cl.pos[cl.nb[n][1], :]) > par.r &&  
+                norm(tmp .- cl.pos[cl.nb[n][2], :]) > par.r &&  
+                norm(tmp .- cl.pos[cl.nb[n][3], :]) > par.r 
                 cl.pos[n, :] .= tmp
                 pass = true
             end
@@ -148,8 +149,8 @@ end
 
 ## script
 
-par = Parameters()
-@time cl = init_cornea(par)
+# par = Parameters()
+# @time cl = init_cornea(par)
 
 plt = plot_cornea(cl, par)
 display(plt)
@@ -166,6 +167,7 @@ for nt in 1:100
         height = 500,
         width  = round(Int, 500/diff(par.xrange)[1]*diff(par.yrange)[1]),)
     # sleep(0.1)
+    println(nt)
 end
 
 framerate = 10
