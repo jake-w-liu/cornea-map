@@ -8,7 +8,7 @@ using Base.Threads
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc = 29.74 # cornea diameter (nm)
-    Nc = 100 #86775 # number of cornea fibers
+    Nc = 200 #86775 # number of cornea fibers
     Sx = 1000 # 22000 # space lengh in x (nm)
     Sy = 1000 # 30000 # space lengh in y (nm)
     ds = 10 # grid size (nm)
@@ -17,6 +17,7 @@ Base.@kwdef mutable struct Parameters
     Ny = round(Int, Sy / ds)
     xrange = [0, Sx] # plot range in x (nm)
     yrange = [0, Sy] # plot range in y (nm) 
+    drift = 20 
 end
 
 mutable struct CorneaList
@@ -32,15 +33,14 @@ function find_neighbor(pos::Matrix{<:Real})
     N = size(pos, 1)
     neighbor = Vector{Vector{Int}}(undef, N)
     dif = zeros(N)
-    si = zeros(Int, N)
     
-    for nc in 1:N
-        @threads for n in 1:N
-            dif[n] = norm(pos[nc] .- pos[n])
+    for n in 1:N
+        @threads for nc in 1:N
+            dif[nc] = norm(pos[nc] .- pos[n])
         end
-        si .= sortperm(dif)
-        neighbor[nc] = [si[2], si[3], si[4]]
-        println(nc)
+        dif[n] = Inf
+        neighbor[n] = findall(x -> x < par.r * sqrt(par.drift * 2), dif)
+        println(n)
     end
     return neighbor
 end
@@ -75,31 +75,34 @@ function init_cornea(par::Parameters)
     return cl
 end
 
-function update_cornea!(cl::CorneaList, par::Parameters, d::Real)
+function update_cornea!(cl::CorneaList, par::Parameters)
     pass = false
     tmp = zeros(2)
     N = size(cl.pos, 1)
-    dif = zeros(N)
+    # dif = zeros(N)
     for n in 1:N
         pass = false
         while !pass
             # @all cl.pos[n, 1] cl.pos[n, 2] += (rand()-0.5)*d
-            tmp[1] = cl.pos[n, 1] + (rand()-0.5)*d
-            tmp[2] = cl.pos[n, 2] + (rand()-0.5)*d
-            @threads for nc in 1:N
-                dif[nc] = norm(tmp .- cl.pos[nc, :])
-            end
-            dif[n] = Inf
-            if all(x -> x >= par.r, dif)
-                cl.pos[n, :] .= tmp
-                pass = true
-            end
-            # if norm(tmp.- cl.pos[cl.nb[n][1], :]) > par.r &&  
-            #     norm(tmp .- cl.pos[cl.nb[n][2], :]) > par.r &&  
-            #     norm(tmp .- cl.pos[cl.nb[n][3], :]) > par.r 
+            tmp[1] = cl.pos[n, 1] + (rand()-0.5)*par.drift*2
+            tmp[2] = cl.pos[n, 2] + (rand()-0.5)*par.drift*2
+            # @threads for nc in 1:N
+            #     dif[nc] = norm(tmp .- cl.pos[nc, :])
+            # end
+            # dif[n] = Inf
+            # if all(x -> x >= par.r, dif)
             #     cl.pos[n, :] .= tmp
             #     pass = true
             # end
+            dif = zeros(length(cl.nb[n]))
+            for nn in 1:length(cl.nb[n])
+                dif[nn] = norm(tmp.- cl.pos[cl.nb[n][nn], :])
+            end
+            
+            if all(dif .> par.r)
+                cl.pos[n, :] .= tmp
+                pass = true
+            end
         end
     end
     return nothing
@@ -170,7 +173,7 @@ if !isdir("tmp")
 end
 
 for nt in 1:100
-    update_cornea!(cl, par, 20)
+    update_cornea!(cl, par)
     update_plot!(plt, cl, par)
     filename = "./tmp/snap_" * lpad(nt, 3, '0') * ".png"
     savefig(plt, filename; 
