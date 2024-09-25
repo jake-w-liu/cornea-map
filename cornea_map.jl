@@ -3,68 +3,98 @@ using LinearAlgebra
 using Infiltrator
 using PlotlyJS
 using FFMPEG
+using Base.Threads
 
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc = 29.74 # cornea diameter (nm)
-    Nc = 86775 # number of cornea fibers
+    Nc = 10000#86775 # number of cornea fibers
     Sx = 22000 # space lengh in x (nm)
     Sy = 30000 # space lengh in y (nm)
     ds = 10 # grid size (nm)
     r = 59.48 # spacing between cornea fibers (nm)
     Nx = round(Int, Sx / ds)
     Ny = round(Int, Sy / ds)
-    xrange = [0, 2000] # plot range in x (nm)
-    yrange = [0, 2000] # plot range in y (nm) 
+    xrange = [0, 500] # plot range in x (nm)
+    yrange = [0, 500] # plot range in y (nm) 
 end
 
-mutable struct Cornea
-    pos::Vector{Float64}
-end
-
-mutable struct Map
-    grid::Matrix{Int}
+mutable struct CorneaList
+    pos::Matrix{Float64}
+    nb::Vector{Vector{Int}}
 end
 
 function generate_pos(sx, sy, d)
     return [(sx - d) * rand() + par.Dc / 2, (sy - d) * rand() + d / 2]
 end
 
+function find_neighbor(pos::Matrix{<:Real})
+    neighbor = Vector{Vector{Int}}(undef, 0)
+    N = size(pos, 1)
+    dif = zeros(N)
+    si = zeros(Int, N)
+    
+    for nc in 1:N
+        @threads for n in 1:N
+            dif[n] = norm(pos[nc] .- pos[n])
+        end
+        si .= sortperm(dif)
+        push!(neighbor, [si[2], si[3], si[4]])
+        println(nc)
+    end
+    return neighbor
+end
+
 function init_cornea(par::Parameters)
-    CorneaList = Vector{Cornea}(undef, 0)
+    cor_pos = zeros(par.Nc, 2)
     pass = false
     for n = 1:par.Nc
         pos = generate_pos(par.Sx, par.Sy, par.Dc)
         if n == 1
-            push!(CorneaList, Cornea(pos))
+            cor_pos[n, :] .= pos
         else
             while !pass
-                for c in CorneaList
-                    if norm(c.pos - pos) <= par.r
+                for nc in 1:n
+                    if norm(cor_pos[nc] .- pos) <= par.r
                         pos .= generate_pos(par.Sx, par.Sy, par.Dc)
                         break
                     end
-                    if c == CorneaList[end]
+                    if nc == n
                         pass = true
                     end
                 end
             end
-            push!(CorneaList, Cornea(pos))
+            cor_pos[n, :] .= pos
             pass = false
         end
         println(n)
     end
-    return CorneaList
+    
+    cor_ind = find_neighbor(cor_pos)
+    cl = CorneaList(cor_pos, cor_ind)
+    return cl
 end
 
-function update_cornea!(CorneaList::Vector{Cornea}, d::Real)
-    for c in CorneaList
-        @all c.pos[1] c.pos[2] += (rand()-0.5)*d
+function update_cornea!(cl::CorneaList, par::Parameters, d::Real)
+    pass = false
+    tmp = zeros(2)
+    for n in 1:size(cl.pos, 1)
+        if !pass
+            # @all cl.pos[n, 1] cl.pos[n, 2] += (rand()-0.5)*d
+            tmp[1] = cl.pos[n, 1] + (rand()-0.5)*d
+            tmp[2] = cl.pos[n, 2] + (rand()-0.5)*d
+            if norm(tmp.- cl.pos[cl,nb[n][1], :]) > par.r &&  
+                norm(tmp .- cl.pos[cl,nb[n][2], :]) > par.r &&  
+                norm(tmp .- cl.pos[cl,nb[n][3], :]) > par.r 
+                cl.pos[n, :] .= tmp
+                pass = true
+            end
+        end
     end
     return nothing
 end
 
-function layout_cornea(CorneaList::Vector{Cornea}, par::Parameters)
+function layout_cornea(cl::CorneaList, par::Parameters)
     layout = Layout(
         template = "plotly_white",
         plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
@@ -73,20 +103,20 @@ function layout_cornea(CorneaList::Vector{Cornea}, par::Parameters)
         yaxis = attr(range = par.yrange, title_text = "y (nm)"),
         shapes = [
         ],
-        height = diff(par.xrange)[1]/5,
-        width  = diff(par.yrange)[1]/5,
+        height = 500,
+        width  = round(Int, 500/diff(par.xrange)[1]*diff(par.yrange)[1]),
     )
-    layout_include!(layout, CorneaList, par)
+    layout_include!(layout, cl, par)
     return layout
 end
 
-function layout_include!(layout::PlotlyJS.Layout, CorneaList::Vector{Cornea}, par::Parameters)
+function layout_include!(layout::PlotlyJS.Layout, cl::CorneaList, par::Parameters)
     layout.shapes = []
     for n in 1:par.Nc
-        if CorneaList[n].pos[1] > par.xrange[1] &&
-            CorneaList[n].pos[1] < par.xrange[2] &&
-            CorneaList[n].pos[2] > par.yrange[1] &&
-            CorneaList[n].pos[2] < par.yrange[2]
+        if cl.pos[n, 1] > par.xrange[1] &&
+            cl.pos[n, 1] < par.xrange[2] &&
+            cl.pos[n, 2] > par.yrange[1] &&
+            cl.pos[n, 2] < par.yrange[2]
             push!(
                 layout.shapes,
                 circle(
@@ -94,10 +124,10 @@ function layout_include!(layout::PlotlyJS.Layout, CorneaList::Vector{Cornea}, pa
                     yref = "y",
                     fillcolor = "rgb(251,226,81)", # KIHADA
                     line_width = 0,
-                    x0 = CorneaList[n].pos[1] - par.Dc / 2,
-                    y0 = CorneaList[n].pos[2] - par.Dc / 2,
-                    x1 = CorneaList[n].pos[1] + par.Dc / 2,
-                    y1 = CorneaList[n].pos[2] + par.Dc / 2,
+                    x0 = cl.pos[n, 1] - par.Dc / 2,
+                    y0 = cl.pos[n, 2] - par.Dc / 2,
+                    x1 = cl.pos[n, 1] + par.Dc / 2,
+                    y1 = cl.pos[n, 2] + par.Dc / 2,
                 ),
             )
         end
@@ -105,25 +135,25 @@ function layout_include!(layout::PlotlyJS.Layout, CorneaList::Vector{Cornea}, pa
     return nothing
 end
 
-function update_plot!(plt::PlotlyJS.SyncPlot, CorneaList::Vector{Cornea}, par::Parameters)
-    layout_include!(plt.plot.layout, CorneaList, par)
+function update_plot!(plt::PlotlyJS.SyncPlot, cl::CorneaList, par::Parameters)
+    layout_include!(plt.plot.layout, cl, par)
     react!(plt, plt.plot.data, plt.plot.layout)
 end
 
-function plot_cornea(CorneaList::Vector{Cornea}, par::Parameters)
-    layout = layout_cornea(CorneaList, par)
+function plot_cornea(cl::CorneaList, par::Parameters)
+    layout = layout_cornea(cl, par)
     plt = plot(scatter(), layout)
     return plt
 end
 
 ## script
 
-# par = Parameters()
-# @time CorneaList = init_cornea(par)
+par = Parameters()
+@time cl = init_cornea(par)
 
-# layout = layout_cornea(CorneaList, par)
+# layout = layout_cornea(cl, par)
 # plt = plot(scatter(), layout)
-plt = plot_cornea(CorneaList, par)
+plt = plot_cornea(cl, par)
 display(plt)
 
 if !isdir("tmp")
@@ -131,16 +161,19 @@ if !isdir("tmp")
 end
 
 for nt in 1:100
-    update_cornea!(CorneaList, 20)
-    update_plot!(plt, CorneaList, par)
+    update_cornea!(cl, 20)
+    update_plot!(plt, cl, par)
     filename = "./tmp/snap_" * lpad(nt, 3, '0') * ".png"
     savefig(plt, filename; 
-        height = round(Int, diff(par.xrange)[1]/5),
-        width  = round(Int, diff(par.yrange)[1]/5),)
+        height = 500,
+        width  = round(Int, 500/diff(par.xrange)[1]*diff(par.yrange)[1]),)
     # sleep(0.1)
 end
 
-imagesdirectory = "./tmp"
-framerate = 30
+framerate = 10
 gifname = "output.gif"
-FFMPEG.ffmpeg_exe(`-framerate $(framerate) -f image2 -i $(imagesdirectory)/snap_%03d.png -y $(gifname)`)
+FFMPEG.ffmpeg_exe(`-framerate $(framerate) -f image2 -i ./tmp/snap_%03d.png -y $(gifname)`)
+
+# if isdir("tmp")
+#     rm("tmp"; recursive=true)
+# end
