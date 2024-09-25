@@ -8,15 +8,15 @@ using Base.Threads
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc = 29.74 # cornea diameter (nm)
-    Nc = 86775 # number of cornea fibers
-    Sx = 22000 # space lengh in x (nm)
-    Sy = 30000 # space lengh in y (nm)
+    Nc = 100 #86775 # number of cornea fibers
+    Sx = 1000 # 22000 # space lengh in x (nm)
+    Sy = 1000 # 30000 # space lengh in y (nm)
     ds = 10 # grid size (nm)
     r = 59.48 # spacing between cornea fibers (nm)
     Nx = round(Int, Sx / ds)
     Ny = round(Int, Sy / ds)
-    xrange = [0, 500] # plot range in x (nm)
-    yrange = [0, 500] # plot range in y (nm) 
+    xrange = [0, Sx] # plot range in x (nm)
+    yrange = [0, Sy] # plot range in y (nm) 
 end
 
 mutable struct CorneaList
@@ -55,7 +55,7 @@ function init_cornea(par::Parameters)
         else
             while !pass
                 for nc in 1:n
-                    if norm(cor_pos[nc] .- pos) <= par.r
+                    if norm(cor_pos[nc, :] .- pos) <= par.r
                         pos .= generate_pos(par.Sx, par.Sy, par.Dc)
                         break
                     end
@@ -78,18 +78,28 @@ end
 function update_cornea!(cl::CorneaList, par::Parameters, d::Real)
     pass = false
     tmp = zeros(2)
-    for n in 1:size(cl.pos, 1)
+    N = size(cl.pos, 1)
+    dif = zeros(N)
+    for n in 1:N
         pass = false
         while !pass
             # @all cl.pos[n, 1] cl.pos[n, 2] += (rand()-0.5)*d
             tmp[1] = cl.pos[n, 1] + (rand()-0.5)*d
             tmp[2] = cl.pos[n, 2] + (rand()-0.5)*d
-            if norm(tmp.- cl.pos[cl.nb[n][1], :]) > par.r &&  
-                norm(tmp .- cl.pos[cl.nb[n][2], :]) > par.r &&  
-                norm(tmp .- cl.pos[cl.nb[n][3], :]) > par.r 
+            @threads for nc in 1:N
+                dif[nc] = norm(tmp .- cl.pos[nc, :])
+            end
+            dif[n] = Inf
+            if all(x -> x >= par.r, dif)
                 cl.pos[n, :] .= tmp
                 pass = true
             end
+            # if norm(tmp.- cl.pos[cl.nb[n][1], :]) > par.r &&  
+            #     norm(tmp .- cl.pos[cl.nb[n][2], :]) > par.r &&  
+            #     norm(tmp .- cl.pos[cl.nb[n][3], :]) > par.r 
+            #     cl.pos[n, :] .= tmp
+            #     pass = true
+            # end
         end
     end
     return nothing
@@ -149,8 +159,8 @@ end
 
 ## script
 
-# par = Parameters()
-# @time cl = init_cornea(par)
+par = Parameters()
+@time cl = init_cornea(par)
 
 plt = plot_cornea(cl, par)
 display(plt)
