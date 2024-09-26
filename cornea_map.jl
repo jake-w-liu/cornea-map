@@ -4,20 +4,21 @@ using Infiltrator
 using PlotlyJS
 using FFMPEG
 using Base.Threads
+using BenchmarkTools
 
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc::Float64 = 30 # cornea diameter (nm)
-    Nc::Int = 86775 # number of cornea fibers
-    Sx::Float64 = 22000 # space lengh in x (nm)
-    Sy::Float64 = 30000 # space lengh in y (nm)
+    Nc::Int = 100#86775 # number of cornea fibers
+    Sx::Float64 = 1000#22000 # space lengh in x (nm)
+    Sy::Float64 = 1000#30000 # space lengh in y (nm)
     ds::Float64 = 10 # grid size (nm)
     r::Float64 = 60 # spacing between cornea fibers (nm)
     Nx::Int = round(Int, Sx / ds)
     Ny::Int = round(Int, Sy / ds)
     xrange::Vector{Float64} = [0, 1000] # plot range in x (nm)
     yrange::Vector{Float64} = [0, 1000] # plot range in y (nm) 
-    drif::Float64t = 20 
+    drift::Float64 = 20 
 end
 
 mutable struct CorneaList
@@ -25,22 +26,22 @@ mutable struct CorneaList
     nb::Vector{Vector{Int}}
 end
 
-function generate_pos(sx, sy, d)
-    return [(sx - d) * rand() + par.Dc / 2, (sy - d) * rand() + d / 2]
-end
-
-function find_neighbor(pos::Matrix{<:Real})
+function find_neighbor(pos::Matrix{<:Real}, par::Parameters)
     N = size(pos, 1)
     neighbor = Vector{Vector{Int}}(undef, N)
-    dif = zeros(N)
+    rd = zeros(2)
     
     @inbounds @views for n in 1:N
-        @threads for nc in 1:N
-            dif[nc] = norm(pos[nc] .- pos[n])
+        neighbor[n] = []
+        for nc in 1:N
+            if nc != n
+                rd .= pos[nc] .- pos[n]
+                if norm(rd) <  1.5 * par.r * sqrt(par.drift)
+                    pushfirst!(neighbor[n], nc)
+                end
+            end
         end
-        dif[n] = Inf
-        neighbor[n] = findall(x -> x < par.r * sqrt(par.drift * 2), dif)
-        println(n)
+        # println(n)
     end
     return neighbor
 end
@@ -48,20 +49,19 @@ end
 function init_cornea(par::Parameters)
     cor_pos = zeros(par.Nc, 2)
     pass = false
-    pos = zeros(2)
+    @all rd pos = zeros(2)
     @inbounds @views for n = 1:par.Nc
         pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
         pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
-        # pos .= generate_pos(par.Sx, par.Sy, par.Dc)
         if n == 1
             cor_pos[n, :] .= pos
         else
             while !pass
                 for nc in 1:n
-                    if norm(cor_pos[nc, :] .- pos) <= par.r
+                    rd .= cor_pos[nc, :] .- pos
+                    if norm(rd) <= par.r
                         pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
                         pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
-                        # pos .= generate_pos(par.Sx, par.Sy, par.Dc)
                         break
                     end
                     if nc == n
@@ -72,43 +72,33 @@ function init_cornea(par::Parameters)
             cor_pos[n, :] .= pos
             pass = false
         end
-        println(n)
+        # println(n)
     end
     
-    cor_ind = find_neighbor(cor_pos)
-    # cor_ind = []
+    cor_ind = find_neighbor(cor_pos, par)
     cl = CorneaList(cor_pos, cor_ind)
     return cl
 end
 
 function update_cornea!(cl::CorneaList, par::Parameters)
     pass = false
-    tmp = zeros(2)
+    @all rd tmp = zeros(2)
     N = size(cl.pos, 1)
-    dif = zeros(N)
     @inbounds @views for n in 1:N
         pass = false
         while !pass
-            fill!(dif, Inf)
-            # @all cl.pos[n, 1] cl.pos[n, 2] += (rand()-0.5)*d
             tmp[1] = cl.pos[n, 1] + (rand()-0.5)*par.drift*2
             tmp[2] = cl.pos[n, 2] + (rand()-0.5)*par.drift*2
-            # @threads for nc in 1:N
-            #     dif[nc] = norm(tmp .- cl.pos[nc, :])
-            # end
-            # dif[n] = Inf
-            # if all(x -> x >= par.r, dif)
-            #     cl.pos[n, :] .= tmp
-            #     pass = true
-            # end
-            # dif = zeros(length(cl.nb[n]))
-            @threads for nn in 1:length(cl.nb[n])
-                dif[nn] = norm(tmp.- cl.pos[cl.nb[n][nn], :])
-            end
-            
-            if all(dif .> par.r)
-                cl.pos[n, :] .= tmp
-                pass = true
+
+            for nn in 1:length(cl.nb[n])
+                rd .= tmp .- cl.pos[cl.nb[n][nn], :]
+                if norm(rd) < par.r
+                    break
+                end
+                if nn == length(cl.nb[n])
+                    cl.pos[n, :] .= tmp
+                    pass = true
+                end
             end
         end
     end
@@ -171,6 +161,8 @@ end
 
 par = Parameters()
 @time cl = init_cornea(par)
+# @btime init_cornea(par)
+# @btime update_cornea!(cl, par)
 
 plt = plot_cornea(cl, par)
 display(plt)
@@ -180,7 +172,7 @@ if !isdir("tmp")
 end
 
 for nt in 1:100
-    update_cornea!(cl, par)
+    @time update_cornea!(cl, par)
     update_plot!(plt, cl, par)
     filename = "./tmp/snap_" * lpad(nt, 3, '0') * ".png"
     savefig(plt, filename; 
