@@ -24,6 +24,7 @@ end
 mutable struct CorneaList
     pos::Matrix{Float64}
     nb::Vector{Vector{Int}}
+    pos_ini::Matrix{Float64} 
 end
 
 function find_neighbor(pos::Matrix{<:Real}, par::Parameters)
@@ -36,7 +37,7 @@ function find_neighbor(pos::Matrix{<:Real}, par::Parameters)
         for nc in 1:N
             if nc != n
                 rd .= pos[nc] .- pos[n]
-                if norm(rd) <  1.5 * par.r * sqrt(par.drift)
+                if norm(rd) < 2*(par.r + par.drift)
                     pushfirst!(neighbor[n], nc)
                 end
             end
@@ -76,7 +77,7 @@ function init_cornea(par::Parameters)
     end
     
     cor_ind = find_neighbor(cor_pos, par)
-    cl = CorneaList(cor_pos, cor_ind)
+    cl = CorneaList(cor_pos, cor_ind, copy(cor_pos))
     return cl
 end
 
@@ -87,9 +88,9 @@ function update_cornea!(cl::CorneaList, par::Parameters)
     @inbounds @views for n in 1:N
         pass = false
         while !pass
-            tmp[1] = cl.pos[n, 1] + (rand()-0.5)*par.drift*2
-            tmp[2] = cl.pos[n, 2] + (rand()-0.5)*par.drift*2
-
+            tmp[1] = cl.pos_ini[n, 1] + (rand()-0.5)*par.drift*2
+            tmp[2] = cl.pos_ini[n, 2] + (rand()-0.5)*par.drift*2
+            
             for nn in 1:length(cl.nb[n])
                 rd .= tmp .- cl.pos[cl.nb[n][nn], :]
                 if norm(rd) < par.r
