@@ -181,7 +181,7 @@ end
 ## script
 
 par = Parameters()
-@time cl = init_cornea(par)
+# @time cl = init_cornea(par)
 # @btime init_cornea(par)
 # @btime update_cornea!(cl, par)
 
@@ -205,7 +205,7 @@ for nt in 1:100
         width  = round(Int, 500/diff(par.xrange)[1]*diff(par.yrange)[1]),
     )
     
-    output_data(cl, par, "./tmp/map_" * lpad(nt, 3, '0') * ".dat")
+    @time output_data(cl, par, "./map/map_" * lpad(nt, 3, '0') * ".dat")
     println(nt)
 end
 
