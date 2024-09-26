@@ -7,17 +7,17 @@ using Base.Threads
 
 # basic parameters
 Base.@kwdef mutable struct Parameters
-    Dc = 29.74 # cornea diameter (nm)
-    Nc = 180 #86775 # number of cornea fibers
-    Sx = 1000 # 22000 # space lengh in x (nm)
-    Sy = 1000 # 30000 # space lengh in y (nm)
-    ds = 10 # grid size (nm)
-    r = 59.48 # spacing between cornea fibers (nm)
-    Nx = round(Int, Sx / ds)
-    Ny = round(Int, Sy / ds)
-    xrange = [0, Sx] # plot range in x (nm)
-    yrange = [0, Sy] # plot range in y (nm) 
-    drift = 20 
+    Dc::Float64 = 30 # cornea diameter (nm)
+    Nc::Int = 86775 # number of cornea fibers
+    Sx::Float64 = 22000 # space lengh in x (nm)
+    Sy::Float64 = 30000 # space lengh in y (nm)
+    ds::Float64 = 10 # grid size (nm)
+    r::Float64 = 60 # spacing between cornea fibers (nm)
+    Nx::Int = round(Int, Sx / ds)
+    Ny::Int = round(Int, Sy / ds)
+    xrange::Vector{Float64} = [0, 1000] # plot range in x (nm)
+    yrange::Vector{Float64} = [0, 1000] # plot range in y (nm) 
+    drif::Float64t = 20 
 end
 
 mutable struct CorneaList
@@ -34,7 +34,7 @@ function find_neighbor(pos::Matrix{<:Real})
     neighbor = Vector{Vector{Int}}(undef, N)
     dif = zeros(N)
     
-    @views for n in 1:N
+    @inbounds @views for n in 1:N
         @threads for nc in 1:N
             dif[nc] = norm(pos[nc] .- pos[n])
         end
@@ -49,19 +49,19 @@ function init_cornea(par::Parameters)
     cor_pos = zeros(par.Nc, 2)
     pass = false
     pos = zeros(2)
-    @views for n = 1:par.Nc
-        # pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
-        # pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
-        pos .= generate_pos(par.Sx, par.Sy, par.Dc)
+    @inbounds @views for n = 1:par.Nc
+        pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
+        pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
+        # pos .= generate_pos(par.Sx, par.Sy, par.Dc)
         if n == 1
             cor_pos[n, :] .= pos
         else
             while !pass
                 for nc in 1:n
                     if norm(cor_pos[nc, :] .- pos) <= par.r
-                        # pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
-                        # pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
-                        pos .= generate_pos(par.Sx, par.Sy, par.Dc)
+                        pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
+                        pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
+                        # pos .= generate_pos(par.Sx, par.Sy, par.Dc)
                         break
                     end
                     if nc == n
@@ -86,7 +86,7 @@ function update_cornea!(cl::CorneaList, par::Parameters)
     tmp = zeros(2)
     N = size(cl.pos, 1)
     dif = zeros(N)
-    @views for n in 1:N
+    @inbounds @views for n in 1:N
         pass = false
         while !pass
             fill!(dif, Inf)
@@ -102,7 +102,7 @@ function update_cornea!(cl::CorneaList, par::Parameters)
             #     pass = true
             # end
             # dif = zeros(length(cl.nb[n]))
-            for nn in 1:length(cl.nb[n])
+            @threads for nn in 1:length(cl.nb[n])
                 dif[nn] = norm(tmp.- cl.pos[cl.nb[n][nn], :])
             end
             
@@ -133,7 +133,7 @@ end
 
 function layout_include!(layout::PlotlyJS.Layout, cl::CorneaList, par::Parameters)
     layout.shapes = []
-    for n in 1:par.Nc
+    @inbounds @views for n in 1:par.Nc
         if cl.pos[n, 1] > par.xrange[1] &&
             cl.pos[n, 1] < par.xrange[2] &&
             cl.pos[n, 2] > par.yrange[1] &&
