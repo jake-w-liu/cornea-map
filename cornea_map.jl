@@ -9,9 +9,9 @@ using BenchmarkTools
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc::Float64 = 30 # cornea diameter (nm)
-    Nc::Int = 100#86775 # number of cornea fibers
-    Sx::Float64 = 1000#22000 # space lengh in x (nm)
-    Sy::Float64 = 1000#30000 # space lengh in y (nm)
+    Nc::Int = 86775 # number of cornea fibers
+    Sx::Float64 = 22000 # space lengh in x (nm)
+    Sy::Float64 = 30000 # space lengh in y (nm)
     ds::Float64 = 10 # grid size (nm)
     r::Float64 = 60 # spacing between cornea fibers (nm)
     Nx::Int = round(Int, Sx / ds)
@@ -42,7 +42,7 @@ function find_neighbor(pos::Matrix{<:Real}, par::Parameters)
                 end
             end
         end
-        # println(n)
+        println(n)
     end
     return neighbor
 end
@@ -73,7 +73,7 @@ function init_cornea(par::Parameters)
             cor_pos[n, :] .= pos
             pass = false
         end
-        # println(n)
+        println(n)
     end
     
     cor_ind = find_neighbor(cor_pos, par)
