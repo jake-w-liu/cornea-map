@@ -5,10 +5,12 @@ using PlotlyJS
 using FFMPEG
 using Base.Threads
 using BenchmarkTools
+using Printf
 
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc::Float64 = 30 # cornea diameter (nm)
+    ri::Float64 = 1.504 # refractive index
     Nc::Int = 86775 # number of cornea fibers
     Sx::Float64 = 22000 # space lengh in x (nm)
     Sy::Float64 = 30000 # space lengh in y (nm)
@@ -18,7 +20,7 @@ Base.@kwdef mutable struct Parameters
     Ny::Int = round(Int, Sy / ds)
     xrange::Vector{Float64} = [0, 1000] # plot range in x (nm)
     yrange::Vector{Float64} = [0, 1000] # plot range in y (nm) 
-    drift::Float64 = 20 
+    drift::Float64 = 20 # drift motion 
 end
 
 mutable struct CorneaList
@@ -51,7 +53,7 @@ function init_cornea(par::Parameters)
     cor_pos = zeros(par.Nc, 2)
     pass = false
     @all rd pos = zeros(2)
-    @inbounds @views for n = 1:par.Nc
+    @inbounds @views for n in 1:par.Nc
         pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
         pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
         if n == 1
@@ -90,10 +92,14 @@ function update_cornea!(cl::CorneaList, par::Parameters)
         while !pass
             tmp[1] = cl.pos_ini[n, 1] + (rand()-0.5)*par.drift*2
             tmp[2] = cl.pos_ini[n, 2] + (rand()-0.5)*par.drift*2
+            if tmp[1] < 0 && tmp[1] > par.Sx &&
+                tmp[2] < 0 && tmp[2] > par.Sy
+                continue
+            end
             
             for nn in 1:length(cl.nb[n])
                 rd .= tmp .- cl.pos[cl.nb[n][nn], :]
-                if norm(rd) < par.r
+                if norm(rd) < par.r 
                     break
                 end
                 if nn == length(cl.nb[n])
@@ -158,6 +164,20 @@ function plot_cornea(cl::CorneaList, par::Parameters)
     return plt
 end
 
+function output_data(cl::CorneaList, par::Parameters, filename::String)
+    data = Vector{Vector{Float64}}(undef, par.Nc)
+    formatted_row = Vector{String}(undef, 4)
+    for n in 1:par.Nc
+       data[n] = [cl.pos[n, 1], cl.pos[n, 2], par.Dc/2, par.ri]
+    end
+    open(filename, "w") do file
+        for row in data
+            formatted_row .= [@sprintf("%e", x) for x in row]
+            println(file, join(formatted_row, ","))
+        end
+    end
+end
+
 ## script
 
 par = Parameters()
@@ -172,14 +192,20 @@ if !isdir("tmp")
     mkdir("tmp")
 end
 
+if !isdir("map")
+    mkdir("map")
+end
+
 for nt in 1:100
     @time update_cornea!(cl, par)
     update_plot!(plt, cl, par)
-    filename = "./tmp/snap_" * lpad(nt, 3, '0') * ".png"
-    savefig(plt, filename; 
+    
+    savefig(plt, "./tmp/snap_" * lpad(nt, 3, '0') * ".png"; 
         height = 500,
-        width  = round(Int, 500/diff(par.xrange)[1]*diff(par.yrange)[1]),)
-    # sleep(0.1)
+        width  = round(Int, 500/diff(par.xrange)[1]*diff(par.yrange)[1]),
+    )
+    
+    output_data(cl, par, "./tmp/map_" * lpad(nt, 3, '0') * ".dat")
     println(nt)
 end
 
