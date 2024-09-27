@@ -39,13 +39,25 @@ function find_neighbor(pos::Matrix{<:Real}, par::Parameters)
         for nc in 1:N
             if nc != n
                 rd .= pos[nc] .- pos[n]
-                if norm(rd) < 2*(par.r + par.drift)
+                if norm(rd) < (par.r + 2 * par.drift)
                     pushfirst!(neighbor[n], nc)
                 end
             end
         end
         println(n)
     end
+    # @threads for n in 1:N
+    #     neighbor[n] = []
+    #     @inbounds @views for nc in 1:N
+    #         if nc != n
+    #             # rd .= pos[nc] .- pos[n]
+    #             if norm(pos[nc] .- pos[n]) < 2*(par.r + par.drift)
+    #                 pushfirst!(neighbor[n], nc)
+    #             end
+    #         end
+    #     end
+    #     println(n)
+    # end
     return neighbor
 end
 
@@ -181,7 +193,7 @@ end
 ## script
 
 par = Parameters()
-# @time cl = init_cornea(par)
+@time cl = init_cornea(par)
 # @btime init_cornea(par)
 # @btime update_cornea!(cl, par)
 
