@@ -1,2 +1,2 @@
-tmp/*.png
-map/*.dat
+./tmp/*.png
+./map/*.dat

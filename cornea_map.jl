@@ -180,7 +180,7 @@ function output_data(cl::CorneaList, par::Parameters, filename::String)
     data = Vector{Vector{Float64}}(undef, par.Nc)
     formatted_row = Vector{String}(undef, 4)
     for n in 1:par.Nc
-       data[n] = [cl.pos[n, 1], cl.pos[n, 2], par.Dc/2, par.ri]
+       data[n] = [cl.pos[n, 1] * 1e-9, cl.pos[n, 2] * 1e-9, par.Dc/2, par.ri]
     end
     open(filename, "w") do file
         for row in data
