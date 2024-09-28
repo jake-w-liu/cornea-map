@@ -1,2 +1,4 @@
-./tmp/*.png
-./map/*.dat
+tmp
+map
+map_jld
+*.png

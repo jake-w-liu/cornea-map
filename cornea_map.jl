@@ -6,14 +6,16 @@ using FFMPEG
 using Base.Threads
 using BenchmarkTools
 using Printf
+using JLD
 
 # basic parameters
 Base.@kwdef mutable struct Parameters
     Dc::Float64 = 30 # cornea diameter (nm)
     ri::Float64 = 1.504 # refractive index
-    Nc::Int = 86775 # number of cornea fibers
+    rho::Float64 = 0.00013147727272727272 # density
     Sx::Float64 = 22000 # space lengh in x (nm)
     Sy::Float64 = 30000 # space lengh in y (nm)
+    Nc::Int = round(Int, rho * Sx * Sy) # number of cornea fibers
     ds::Float64 = 10 # grid size (nm)
     r::Float64 = 60 # spacing between cornea fibers (nm)
     Nx::Int = round(Int, Sx / ds)
@@ -180,7 +182,7 @@ function output_data(cl::CorneaList, par::Parameters, filename::String)
     data = Vector{Vector{Float64}}(undef, par.Nc)
     formatted_row = Vector{String}(undef, 4)
     for n in 1:par.Nc
-       data[n] = [cl.pos[n, 1] * 1e-9, cl.pos[n, 2] * 1e-9, par.Dc/2, par.ri]
+       data[n] = [cl.pos[n, 1] * 1e-9, cl.pos[n, 2] * 1e-9, par.Dc/2 * 1e-9, par.ri]
     end
     open(filename, "w") do file
         for row in data
@@ -190,12 +192,23 @@ function output_data(cl::CorneaList, par::Parameters, filename::String)
     end
 end
 
+function output_grid(cl::CorneaList, par::Parameters, filename::String, bg_ind::Int, mtr_ind::Int)
+    grid = ones(Int, par.Nx, par.Ny).*bg_ind
+    x = range(0, (par.Nx-1)*par.ds, par.Nx) .+ par.ds/2
+    y = range(0, (par.Ny-1)*par.ds, par.Ny) .+ par.ds/2
+    @all indx indy = 0
+    @Vviews for n in 1:par.Nc
+        _, indx = findmin(abs.(x .-cl.pos[n, 1]))
+        _, indy = findmin(abs.(y .-cl.pos[n, 2]))
+        grid[indx, indy] = mtr_ind
+    end
+    save(filename, "grid", grid)
+end
+
 ## script
 
 par = Parameters()
 @time cl = init_cornea(par)
-# @btime init_cornea(par)
-# @btime update_cornea!(cl, par)
 
 plt = plot_cornea(cl, par)
 display(plt)
@@ -208,6 +221,10 @@ if !isdir("map")
     mkdir("map")
 end
 
+if !isdir("map_jld")
+    mkdir("map_jld")
+end
+
 for nt in 1:100
     @time update_cornea!(cl, par)
     update_plot!(plt, cl, par)
@@ -218,6 +235,8 @@ for nt in 1:100
     )
     
     @time output_data(cl, par, "./map/map_" * lpad(nt, 3, '0') * ".dat")
+    @time output_grid(cl, par, "./map_jld/map_" * lpad(nt, 3, '0') * ".jld", 3, 8)
+    
     println(nt)
 end
 
