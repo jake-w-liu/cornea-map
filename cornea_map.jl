@@ -197,10 +197,21 @@ function output_grid(cl::CorneaList, par::Parameters, filename::String, bg_ind::
     x = range(0, (par.Nx-1)*par.ds, par.Nx) .+ par.ds/2
     y = range(0, (par.Ny-1)*par.ds, par.Ny) .+ par.ds/2
     @all indx indy = 0
-    @Vviews for n in 1:par.Nc
+    nr = ceil(Int, par.Dc/par.ds/2)
+    @views for n in 1:par.Nc
         _, indx = findmin(abs.(x .-cl.pos[n, 1]))
         _, indy = findmin(abs.(y .-cl.pos[n, 2]))
         grid[indx, indy] = mtr_ind
+        for nx in -nr:nr
+            for ny in -nr:nr
+                if (nx * par.ds)^2 + (ny * par.ds)^2 < (par.Dc/2)^2
+                    if indx+nx > 0 && indx+nx <= par.Nx && 
+                        indy+ny > 0 && indy+ny <= par.Ny
+                        grid[indx+nx, indy+ny] = mtr_ind
+                    end
+                end
+            end
+        end
     end
     save(filename, "grid", grid)
 end
@@ -208,7 +219,7 @@ end
 ## script
 
 par = Parameters()
-@time cl = init_cornea(par)
+# @time cl = init_cornea(par)
 
 plt = plot_cornea(cl, par)
 display(plt)
