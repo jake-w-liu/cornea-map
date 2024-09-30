@@ -15,12 +15,13 @@ Base.@kwdef mutable struct Parameters
     rho::Float64 = 0.00013147727272727272 # density
     Sx::Float64 = 22000 # space lengh in x (nm)
     Sy::Float64 = 30000 # space lengh in y (nm)
+    Sb::Float64 = 2020 # source boundary (nm)
     Nc::Int = round(Int, rho * Sx * Sy) # number of cornea fibers
     ds::Float64 = 10 # grid size (nm)
     r::Float64 = 60 # spacing between cornea fibers (nm)
     Nx::Int = round(Int, Sx / ds)
     Ny::Int = round(Int, Sy / ds)
-    xrange::Vector{Float64} = [0, 1000] # plot range in x (nm)
+    xrange::Vector{Float64} = [1500, 2500] # plot range in x (nm)
     yrange::Vector{Float64} = [0, 1000] # plot range in y (nm) 
     drift::Float64 = 20 # drift motion 
 end
@@ -68,7 +69,7 @@ function init_cornea(par::Parameters)
     pass = false
     @all rd pos = zeros(2)
     @inbounds @views for n = 1:par.Nc
-        pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
+        pos[1] = (par.Sx - par.Dc - par.Sb) * rand() + par.Dc / 2 + par.Sb
         pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
         if n == 1
             cor_pos[n, :] .= pos
@@ -77,7 +78,7 @@ function init_cornea(par::Parameters)
                 for nc = 1:n
                     rd .= cor_pos[nc, :] .- pos
                     if norm(rd) <= par.r
-                        pos[1] = (par.Sx - par.Dc) * rand() + par.Dc / 2
+                        pos[1] = (par.Sx - par.Dc - par.Sb) * rand() + par.Dc / 2 + par.Sb
                         pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
                         break
                     end
@@ -106,7 +107,7 @@ function update_cornea!(cl::CorneaList, par::Parameters)
         while !pass
             tmp[1] = cl.pos_ini[n, 1] + (rand() - 0.5) * par.drift * 2
             tmp[2] = cl.pos_ini[n, 2] + (rand() - 0.5) * par.drift * 2
-            if tmp[1] < 0 && tmp[1] > par.Sx && tmp[2] < 0 && tmp[2] > par.Sy
+            if tmp[1] < par.Sb + par.Dc/2 && tmp[1] > par.Sx && tmp[2] < par.Dc/2  && tmp[2] > par.Sy
                 continue
             end
 
@@ -218,19 +219,6 @@ function output_grid(
                 end
             end
         end
-        # _, indx = findmin(abs.(x .-cl.pos[n, 1]))
-        # _, indy = findmin(abs.(y .-cl.pos[n, 2]))
-        # grid[indx, indy] = mtr_ind
-        # for nx in -nr:nr
-        #     for ny in -nr:nr
-        #         if (nx * par.ds)^2 + (ny * par.ds)^2 < (par.Dc/2)^2
-        #             if indx+nx > 0 && indx+nx <= par.Nx && 
-        #                 indy+ny > 0 && indy+ny <= par.Ny
-        #                 grid[indx+nx, indy+ny] = mtr_ind
-        #             end
-        #         end
-        #     end
-        # end
     end
     save(filename, "grid", grid)
 end
