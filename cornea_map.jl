@@ -15,7 +15,8 @@ Base.@kwdef mutable struct Parameters
     rho::Float64 = 0.00013147727272727272 # density
     Sx::Float64 = 22000 # space lengh in x (nm)
     Sy::Float64 = 30000 # space lengh in y (nm)
-    Sb::Float64 = 2020 # source boundary (nm)
+    Sb::Float64 = 2000 # source boundary (nm)
+    Cb::Float64 = 100 # min distance from cylinder to boundary (nm)
     Nc::Int = round(Int, rho * Sx * Sy) # number of cornea fibers
     ds::Float64 = 10 # grid size (nm)
     r::Float64 = 60 # spacing between cornea fibers (nm)
@@ -49,18 +50,6 @@ function find_neighbor(pos::Matrix{<:Real}, par::Parameters)
         end
         println(n)
     end
-    # @threads for n in 1:N
-    #     neighbor[n] = []
-    #     @inbounds @views for nc in 1:N
-    #         if nc != n
-    #             # rd .= pos[nc] .- pos[n]
-    #             if norm(pos[nc] .- pos[n]) < 2*(par.r + par.drift)
-    #                 pushfirst!(neighbor[n], nc)
-    #             end
-    #         end
-    #     end
-    #     println(n)
-    # end
     return neighbor
 end
 
@@ -69,8 +58,8 @@ function init_cornea(par::Parameters)
     pass = false
     @all rd pos = zeros(2)
     @inbounds @views for n = 1:par.Nc
-        pos[1] = (par.Sx - par.Dc - par.Sb) * rand() + par.Dc / 2 + par.Sb
-        pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
+        pos[1] = (par.Sx - 2*par.Cb - par.Sb) * rand() + par.Cb + par.Sb
+        pos[2] = (par.Sy - 2*par.Cb) * rand() + par.Cb
         if n == 1
             cor_pos[n, :] .= pos
         else
@@ -78,8 +67,8 @@ function init_cornea(par::Parameters)
                 for nc = 1:n
                     rd .= cor_pos[nc, :] .- pos
                     if norm(rd) <= par.r
-                        pos[1] = (par.Sx - par.Dc - par.Sb) * rand() + par.Dc / 2 + par.Sb
-                        pos[2] = (par.Sy - par.Dc) * rand() + par.Dc / 2
+                        pos[1] = (par.Sx - 2*par.Cb - par.Sb) * rand() + par.Cb + par.Sb
+                        pos[2] = (par.Sy - 2*par.Cb) * rand() + par.Cb
                         break
                     end
                     if nc == n
@@ -107,7 +96,8 @@ function update_cornea!(cl::CorneaList, par::Parameters)
         while !pass
             tmp[1] = cl.pos_ini[n, 1] + (rand() - 0.5) * par.drift * 2
             tmp[2] = cl.pos_ini[n, 2] + (rand() - 0.5) * par.drift * 2
-            if tmp[1] < par.Sb + par.Dc/2 && tmp[1] > par.Sx && tmp[2] < par.Dc/2  && tmp[2] > par.Sy
+            if tmp[1] < par.Sb + par.Cb && tmp[1] > par.Sx - par.Cb && 
+                tmp[2] < par.Cb && tmp[2] > par.Sy - par.Cb 
                 continue
             end
 
@@ -143,7 +133,7 @@ end
 
 function layout_include!(layout::PlotlyJS.Layout, cl::CorneaList, par::Parameters)
     layout.shapes = []
-    @inbounds @views for n = 1:par.Nc
+    @inbounds @views for n in 1:par.Nc
         if cl.pos[n, 1] > par.xrange[1] &&
            cl.pos[n, 1] < par.xrange[2] &&
            cl.pos[n, 2] > par.yrange[1] &&
