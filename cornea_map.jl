@@ -25,8 +25,8 @@ Base.@kwdef mutable struct Parameters
     r::Float64 = 60 # spacing between cornea fibers (nm)
     Nx::Int = round(Int, Sx / ds)
     Ny::Int = round(Int, Sy / ds)
-    xrange::Vector{Float64} = [0, 2000] # plot range in x (nm)
-    yrange::Vector{Float64} = [7000, 9000] # plot range in y (nm) 
+    xrange::Vector{Float64} = [8500, 11500] # plot range in x (nm)
+    yrange::Vector{Float64} = [5000, 15000] # plot range in y (nm) 
     drift::Float64 = 20 # drift motion 
     mn::Int = 100 # map number
 end
@@ -149,8 +149,8 @@ function layout_cornea(cl::CorneaList, par::Parameters)
         xaxis = attr(range = par.xrange, title_text = "x (nm)"),
         yaxis = attr(range = par.yrange, title_text = "y (nm)"),
         shapes = [],
-        height = 500,
-        width = round(Int, 500 / diff(par.xrange)[1] * diff(par.yrange)[1]),
+        height = 600,
+        width = round(Int, 500 / diff(par.yrange)[1] * diff(par.xrange)[1]),
     )
     layout_include!(layout, cl, par)
     return layout
@@ -277,8 +277,8 @@ function main()
         savefig(
             plt,
             "./tmp/snap_" * lpad(nt, 3, '0') * ".png";
-            height = 500,
-            width = round(Int, 500 / diff(par.xrange)[1] * diff(par.yrange)[1]),
+            height = 600,
+            width = round(Int, 600 / diff(par.yrange)[1] * diff(par.xrange)[1]),
         )
 
         @time output_data(cl, par, "./map/" * file_name * lpad(nt, 3, '0') * ".dat", data)
