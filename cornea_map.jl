@@ -267,7 +267,7 @@ function main()
         mkdir("map_jld")
     end
 
-    file_name = "cornea_map_$(par.Sx/1000)by$(par.Sy/1000)_"
+    file_name = "cornea_map_$(round(Int, par.Sx/1000))by$(round(Int, par.Sy/1000))_"
     data = Vector{Vector{Float64}}(undef, par.Nc)
     grid = ones(Int, par.Nx, par.Ny) .* 3
     for nt = 1:par.mn
