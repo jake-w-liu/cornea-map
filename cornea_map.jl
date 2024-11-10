@@ -146,11 +146,11 @@ function layout_cornea(cl::CorneaList, par::Parameters)
         template = "plotly_white",
         plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
         # xaxis=attr(scaleanchor="y"),
-        xaxis = attr(range = par.xrange, title_text = "x (nm)"),
+        xaxis = attr(range = par.xrange, title_text = "x (nm)", scaleanchor="y"),
         yaxis = attr(range = par.yrange, title_text = "y (nm)"),
         shapes = [],
-        height = 600,
-        width = round(Int, 500 / diff(par.yrange)[1] * diff(par.xrange)[1]),
+        # height = 1000,
+        # width = round(Int, 1000 / diff(par.yrange)[1] * diff(par.xrange)[1]),
     )
     layout_include!(layout, cl, par)
     return layout
@@ -277,8 +277,8 @@ function main()
         savefig(
             plt,
             "./tmp/snap_" * lpad(nt, 3, '0') * ".png";
-            height = 600,
-            width = round(Int, 600 / diff(par.yrange)[1] * diff(par.xrange)[1]),
+            height = 1000,
+            # width = round(Int, 1000 / diff(par.yrange)[1] * diff(par.xrange)[1]),
         )
 
         @time output_data(cl, par, "./map/" * file_name * lpad(nt, 3, '0') * ".dat", data)
