@@ -12,8 +12,8 @@ using JLD
 Base.@kwdef mutable struct Parameters
     Dc::Float64 = 30 # cornea diameter (nm)
     ri::Float64 = 1.504 # refractive index
-    rho::Float64 = 0.00013147727272727272 # density
-    # rho::Float64 = 0.000000013147727272727272 # density ## Test
+    # rho::Float64 = 0.00013147727272727272 # density
+    rho::Float64 = 0.000000013147727272727272 # density ## Test
     Sx::Float64 = 20000 # space lengh in x (nm)
     Sy::Float64 = 20000 # space lengh in y (nm)
     St::Float64 = 1000 # source thickness (nm)
@@ -28,7 +28,7 @@ Base.@kwdef mutable struct Parameters
     xrange::Vector{Float64} = [8500, 11500] # plot range in x (nm)
     yrange::Vector{Float64} = [5000, 15000] # plot range in y (nm) 
     drift::Float64 = 20 # drift motion 
-    mn::Int = 100 # map number
+    mn::Int = 10 # map number
 end
 
 mutable struct CorneaList
@@ -144,20 +144,38 @@ end
 function layout_cornea(cl::CorneaList, par::Parameters)
     layout = Layout(
         template = "plotly_white",
-        plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
+        # plot_bgcolor = "rgb(43,95,117)", # NOSHIMEHANA
         # xaxis=attr(scaleanchor="y"),
-        xaxis = attr(range = par.xrange, title_text = "x (nm)", scaleanchor="y"),
-        yaxis = attr(range = par.yrange, title_text = "y (nm)"),
-        shapes = [],
-        # height = 1000,
-        # width = round(Int, 1000 / diff(par.yrange)[1] * diff(par.xrange)[1]),
+        xaxis = attr(range = par.xrange, title_text = "x (nm)", scaleanchor="y", zeroline=false),
+        yaxis = attr(range = par.yrange, title_text = "y (nm)", zeroline=false),
+        shapes = [
+            rect(
+            x0=par.xrange[1], y0=par.yrange[1], x1=par.xrange[2], y1=par.yrange[2],
+            line=attr(
+                color="RoyalBlue",
+                width=1,
+            ),
+            fillcolor="rgb(43,95,117)",
+            xref='x', yref='y'
+        )
+        ],
+        height = 1000,
+        width = round(Int, 1000 / diff(par.yrange)[1] * diff(par.xrange)[1] * 1.2),
     )
     layout_include!(layout, cl, par)
     return layout
 end
 
 function layout_include!(layout::PlotlyJS.Layout, cl::CorneaList, par::Parameters)
-    layout.shapes = []
+    layout.shapes = [rect(
+        x0=par.xrange[1], y0=par.yrange[1], x1=par.xrange[2], y1=par.yrange[2],
+        line=attr(
+            color="RoyalBlue",
+            width=1,
+        ),
+        fillcolor="rgb(43,95,117)",
+        xref='x', yref='y'
+    )]
     @inbounds @views for n = 1:par.Nc
         if cl.pos[n, 1] > par.xrange[1] &&
            cl.pos[n, 1] < par.xrange[2] &&
@@ -278,7 +296,7 @@ function main()
             plt,
             "./tmp/snap_" * lpad(nt, 3, '0') * ".png";
             height = 1000,
-            # width = round(Int, 1000 / diff(par.yrange)[1] * diff(par.xrange)[1]),
+            width = round(Int, 1000 / diff(par.yrange)[1] * diff(par.xrange)[1] * 1.2),
         )
 
         @time output_data(cl, par, "./map/" * file_name * lpad(nt, 3, '0') * ".dat", data)
